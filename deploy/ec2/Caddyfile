@@ -1,0 +1,12 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$VEXA_DOMAIN} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy vexa:8056
+}
