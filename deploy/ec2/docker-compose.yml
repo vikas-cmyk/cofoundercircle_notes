@@ -102,7 +102,10 @@ services:
       - "443:443"
     environment:
       VEXA_DOMAIN: ${VEXA_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
+      # `:-` also covers set-but-empty, which the VEXA_DOMAIN=:80 (plain HTTP) path leaves it as.
+      # Caddy's own {$VAR:default} does not: it emits a bare `email`, which fails to parse and
+      # puts the container in a restart loop. ACME never runs on that path, so the value is inert.
+      ACME_EMAIL: ${ACME_EMAIL:-acme@invalid.local}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
