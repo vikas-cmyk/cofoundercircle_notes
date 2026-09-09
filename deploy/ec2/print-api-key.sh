@@ -10,13 +10,18 @@ if docker compose exec -T vexa test -f /run/vexa/key.env 2>/dev/null; then
   exit 0
 fi
 
-# shellcheck disable=SC1091
-set -a
-[ -f .env ] && . ./.env
-set +a
-if [ -n "${VEXA_API_KEY:-}" ]; then
-  echo "VEXA_API_KEY=${VEXA_API_KEY}"
-  exit 0
+# Read the one key we need without sourcing: an unquoted value with spaces elsewhere in the
+# file (DEFAULT_BOT_NAME) would word-split and run as a command.
+if [ -f .env ]; then
+  key="$(sed -n 's/^VEXA_API_KEY=//p' .env | tail -1)"
+  case "$key" in
+    \"*\") key="${key#\"}"; key="${key%\"}" ;;
+    \'*\') key="${key#\'}"; key="${key%\'}" ;;
+  esac
+  if [ -n "$key" ]; then
+    echo "VEXA_API_KEY=${key}"
+    exit 0
+  fi
 fi
 
 echo "No key yet. Wait ~30s after first boot, then re-run. Or set VEXA_API_KEY in .env." >&2
