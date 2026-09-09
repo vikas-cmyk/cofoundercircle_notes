@@ -1,5 +1,8 @@
+# VEXA_DOMAIN is either a hostname (Caddy gets a Let's Encrypt cert) or ":80" (plain HTTP on
+# this box's IP — Let's Encrypt will not issue for a bare IP). The email default keeps this
+# file parseable on the ":80" path, where ACME never runs.
 {
-	email {$ACME_EMAIL}
+	email {$ACME_EMAIL:acme@invalid.local}
 }
 
 {$VEXA_DOMAIN} {

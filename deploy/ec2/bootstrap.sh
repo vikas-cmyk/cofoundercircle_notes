@@ -60,13 +60,23 @@ set -a
 set +a
 
 if [ -z "${VEXA_DOMAIN:-}" ] || [ "$VEXA_DOMAIN" = "vexa.example.com" ]; then
-  echo "Set VEXA_DOMAIN in $DIR/.env to the hostname whose A-record points at this box." >&2
+  echo "Set VEXA_DOMAIN in $DIR/.env to the hostname whose A-record points at this box," >&2
+  echo "or to ':80' to serve plain HTTP on this box's IP (no certificate, no TLS)." >&2
   exit 1
 fi
-if [ -z "${ACME_EMAIL:-}" ] || [ "$ACME_EMAIL" = "ops@example.com" ]; then
-  echo "Set ACME_EMAIL in $DIR/.env (Let's Encrypt)." >&2
-  exit 1
-fi
+# A VEXA_DOMAIN of ':80' is a Caddy port-only site address: HTTP, automatic HTTPS off. Let's
+# Encrypt will not issue for a bare IP, so a box reached by IP has no other shape. ACME_EMAIL
+# is unused on this path.
+case "$VEXA_DOMAIN" in
+  :*) SCHEME=http ;;
+  *)
+    SCHEME=https
+    if [ -z "${ACME_EMAIL:-}" ] || [ "$ACME_EMAIL" = "ops@example.com" ]; then
+      echo "Set ACME_EMAIL in $DIR/.env (Let's Encrypt)." >&2
+      exit 1
+    fi
+    ;;
+esac
 if [ -z "${TRANSCRIPTION_SERVICE_TOKEN:-}" ]; then
   echo "Set TRANSCRIPTION_SERVICE_TOKEN in $DIR/.env (Groq gsk_… or other STT token)." >&2
   exit 1
@@ -75,6 +85,13 @@ if [ -z "${VEXA_PUBLIC_API_URL:-}" ]; then
   echo "VEXA_PUBLIC_API_URL is empty" >&2
   exit 1
 fi
+case "$VEXA_PUBLIC_API_URL" in
+  "${SCHEME}://"*) ;;
+  *)
+    echo "VEXA_PUBLIC_API_URL must start with ${SCHEME}:// to match how Caddy serves this box." >&2
+    exit 1
+    ;;
+esac
 
 chmod +x print-api-key.sh 2>/dev/null || true
 
@@ -98,11 +115,17 @@ fi
 
 echo
 echo "Vexa Lite is up."
-echo "  API:     https://${VEXA_DOMAIN}"
-echo "  Health:  https://${VEXA_DOMAIN}/health"
-echo "  Docs:    https://${VEXA_DOMAIN}/docs"
+echo "  API:     ${VEXA_PUBLIC_API_URL}"
+echo "  Health:  ${VEXA_PUBLIC_API_URL}/health"
+echo "  Docs:    ${VEXA_PUBLIC_API_URL}/docs"
 echo
 ./print-api-key.sh || true
 echo
-echo "Point the Cofounder Circle backend at VEXA_API_URL=https://${VEXA_DOMAIN}"
+echo "Point the Cofounder Circle backend at VEXA_API_URL=${VEXA_PUBLIC_API_URL}"
 echo "and POST /meetings with auto_join: true. Do not expose port 3001."
+if [ "$SCHEME" = http ]; then
+  echo
+  echo "NOTE: plain HTTP — the backend's X-API-Key crosses the internet unencrypted."
+  echo "Restrict port 80 to the backend's address in the security group, and move to a"
+  echo "domain + TLS before this carries real meetings."
+fi
