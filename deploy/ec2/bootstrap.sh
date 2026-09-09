@@ -53,11 +53,25 @@ fill_secret POSTGRES_PASSWORD .env
 fill_secret MINIO_ACCESS_KEY .env
 fill_secret MINIO_SECRET_KEY .env
 
-# shellcheck disable=SC1091
-set -a
-# shellcheck source=/dev/null
-. ./.env
-set +a
+# Read .env the way compose reads env_file — KEY=VALUE to end of line, no shell evaluation.
+# Sourcing it instead would word-split unquoted values (DEFAULT_BOT_NAME=Cofounder Circle Notes
+# ran `Circle` as a command) and would execute anything else the file happened to contain.
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in
+    ''|'#'*) continue ;;
+    *=*) ;;
+    *) continue ;;
+  esac
+  key="${line%%=*}"
+  case "$key" in ''|*[!A-Za-z0-9_]*) continue ;; esac
+  val="${line#*=}"
+  # Surrounding quotes are a quoting device, not part of the value (compose strips them too).
+  case "$val" in
+    \"*\") val="${val#\"}"; val="${val%\"}" ;;
+    \'*\') val="${val#\'}"; val="${val%\'}" ;;
+  esac
+  export "$key=$val"
+done <.env
 
 if [ -z "${VEXA_DOMAIN:-}" ] || [ "$VEXA_DOMAIN" = "vexa.example.com" ]; then
   echo "Set VEXA_DOMAIN in $DIR/.env to the hostname whose A-record points at this box," >&2
